@@ -1,4 +1,15 @@
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:self_control/services/android_bridge.dart';
+
+class AppInfo {
+  final String name;
+  final String package;
+  final Uint8List icon;
+
+  AppInfo({required this.name, required this.package, required this.icon});
+}
 
 class AppListScreen extends StatefulWidget {
   const AppListScreen({super.key});
@@ -8,30 +19,102 @@ class AppListScreen extends StatefulWidget {
 }
 
 class _AppListScreenState extends State<AppListScreen> {
-  // Liste mockée d'applications (remplacée plus tard par des données réelles)
-  List<String> _allApps = [
-    "Instagram",
-    "Facebook",
-    "TikTok",
-    "Gmail",
-    "Spotify",
-  ];
-  List<String> _filteredApps = [];
-  final TextEditingController _searchController = TextEditingController();
+  static const platform = MethodChannel("com.example.myapp/apps");
+  List<AppInfo> apps = [];
 
   @override
   void initState() {
     super.initState();
-    _filteredApps = _allApps;
+    _getInstalledApps();
+  }
+
+  Future<void> _getInstalledApps() async {
+    try {
+      final List result = await platform.invokeMethod('getInstalledApps');
+      List<AppInfo> loadedApps = [];
+
+      for (var app in result) {
+        loadedApps.add(
+          AppInfo(
+            name: app['name'],
+            package: app['package'],
+            icon: Uint8List.fromList(List<int>.from(app['icon'])),
+          ),
+        );
+      }
+
+      setState(() {
+        apps = loadedApps;
+      });
+    } on PlatformException catch (e) {
+      print("Failed to get apps: ${e.message}");
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Text('Applications installées')),
+      body:
+          apps.isEmpty
+              ? Center(child: CircularProgressIndicator())
+              : ListView.builder(
+                itemCount: apps.length,
+                itemBuilder: (context, index) {
+                  final app = apps[index];
+                  return ListTile(
+                    leading: Image.memory(app.icon, width: 40, height: 40),
+                    title: Text(app.name),
+                    subtitle: Text(app.package),
+                  );
+                },
+              ),
+    );
+  }
+
+  /* List<Map<String, dynamic>> _installedApps = [];
+  List<Map<String, dynamic>> _filteredApps = [];
+  final AndroidBridge _androidBridge = AndroidBridge();
+  final TextEditingController _searchController = TextEditingController();
+  final Set<String> _selectedApps = {};
+  final Map<String, Uint8List?> _iconsCache = {}; // Cache pour les icônes
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchInstalledApps();
     _searchController.addListener(_filterApps);
   }
 
-  // Filtrage des apps en temps réel [[2]][[5]]
+  Future<void> _fetchInstalledApps() async {
+    try {
+      final apps = await _androidBridge.getInstalledApps();
+      setState(() {
+        _installedApps = apps;
+        _filteredApps = _installedApps;
+      });
+    } catch (e) {
+      debugPrint("Erreur: $e");
+    }
+  }
+
+  Future<Uint8List?> _getIcon(String packageName) async {
+    if (_iconsCache.containsKey(packageName)) {
+      return _iconsCache[packageName];
+    }
+    final icon = await _androidBridge.getAppIcon(packageName);
+    setState(() {
+      _iconsCache[packageName] = icon; // Ajouter au cache
+    });
+    return icon;
+  }
+
   void _filterApps() {
     final query = _searchController.text.toLowerCase();
     setState(() {
-      _filteredApps =
-          _allApps.where((app) => app.toLowerCase().contains(query)).toList();
+      _filteredApps = _installedApps
+          .where((app) => app["name"].toLowerCase().contains(query))
+          .toList();
     });
   }
 
@@ -57,18 +140,42 @@ class _AppListScreenState extends State<AppListScreen> {
           ),
         ),
       ),
-
       body: ListView.builder(
         itemCount: _filteredApps.length,
-        itemBuilder:
-            (context, index) => ListTile(
-              title: Text(_filteredApps[index]),
-              leading: const Icon(Icons.apps),
-              trailing: Checkbox(
-                value: false, // À connecter à la logique de sélection
-                onChanged: (value) {}, // À implémenter
-              ),
-            ),
+        itemBuilder: (context, index) {
+          final app = _filteredApps[index];
+          final isSelected = _selectedApps.contains(app["package"]);
+
+          return FutureBuilder<Uint8List?>(
+            future: _getIcon(app["package"]),
+            builder: (context, snapshot) {
+              final icon = snapshot.data;
+              return ListTile(
+                leading: icon != null
+                    ? CircleAvatar(
+                        backgroundImage: MemoryImage(icon),
+                      )
+                    : const CircleAvatar(
+                        child: Icon(Icons.apps), // Placeholder
+                      ),
+                title: Text(app["name"]),
+                subtitle: Text(app["package"]),
+                trailing: Checkbox(
+                  value: isSelected,
+                  onChanged: (value) {
+                    setState(() {
+                      if (value == true) {
+                        _selectedApps.add(app["package"]);
+                      } else {
+                        _selectedApps.remove(app["package"]);
+                      }
+                    });
+                  },
+                ),
+              );
+            },
+          );
+        },
       ),
     );
   }
@@ -77,5 +184,5 @@ class _AppListScreenState extends State<AppListScreen> {
   void dispose() {
     _searchController.dispose();
     super.dispose();
-  }
+  } */
 }
