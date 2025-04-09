@@ -20,16 +20,56 @@ class MainActivity: FlutterActivity() {
 
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL).setMethodCallHandler {
             call, result ->
-            if (call.method == "getInstalledApps") {
-                val apps = getInstalledApps()
-                result.success(apps)
-            } else {
-                result.notImplemented()
+            when(call.method) {
+                "getInstalledAppsWithoutIcon" -> {
+                    val apps = getInstalledAppsWithoutIcon()
+                    result.success(apps)
+                }
+                "getAppIcon" -> {
+                    val packageName = call.argument<String>("packageName")
+                    if (packageName != null) {
+                        val icon = getAppIcon(packageName)
+                        result.success(icon)
+                    } else {
+                        result.error("INVALID_PACKAGE", "Package name is null", null)
+                    }
+                }
+                else -> result.notImplemented()
             }
         }
     }
 
-    private fun getInstalledApps(): List<Map<String, Any>> {
+    private fun getInstalledAppsWithoutIcon(): List<Map<String, String>> {
+        val pm: PackageManager = packageManager
+        val packages = pm.getInstalledApplications(PackageManager.GET_META_DATA)
+        val appList = mutableListOf<Map<String, String>>()
+
+        for(appInfo in packages) {
+            if((appInfo.flags and ApplicationInfo.FLAG_SYSTEM) == 0){
+                val appName = pm.getApplicationLabel(appInfo).toString()
+                appList.add(
+                    mapOf(
+                        "name" to appName,
+                        "package" to appInfo.packageName
+                    )
+                )
+            }
+        }
+
+        return appList
+    }
+
+    private fun getAppIcon(packageName: String): ByteArray {
+        val pm: PackageManager = packageManager
+        val iconDrawable = pm.getApplicationIcon(packageName)
+        val bitmap = drawableToBitmap(iconDrawable)
+        val stream = ByteArrayOutputStream()
+        bitmap.compress(Bitmap.CompressFormat.PNG, 100, stream)
+        val iconBytes = stream.toByteArray()
+        return iconBytes
+    }
+
+    /* private fun getInstalledApps(): List<Map<String, Any>> {
         val pm: PackageManager = packageManager
         val packages = pm.getInstalledApplications(PackageManager.GET_META_DATA)
         val appsList = mutableListOf<Map<String, Any>>()
@@ -55,7 +95,7 @@ class MainActivity: FlutterActivity() {
         }
 
         return appsList
-    }
+    } */
 
     private fun drawableToBitmap(drawable: Drawable): Bitmap {
         return if (drawable is BitmapDrawable) {

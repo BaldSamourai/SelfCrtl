@@ -1,15 +1,7 @@
-import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:self_control/model/app_info.dart';
 import 'package:self_control/services/android_bridge.dart';
-
-class AppInfo {
-  final String name;
-  final String package;
-  final Uint8List icon;
-
-  AppInfo({required this.name, required this.package, required this.icon});
-}
 
 class AppListScreen extends StatefulWidget {
   const AppListScreen({super.key});
@@ -30,7 +22,7 @@ class _AppListScreenState extends State<AppListScreen> {
 
   Future<void> _getInstalledApps() async {
     try {
-      final List result = await platform.invokeMethod('getInstalledApps');
+      final List result = await platform.invokeMethod('getInstalledAppsWithoutIcon');
       List<AppInfo> loadedApps = [];
 
       for (var app in result) {
@@ -38,7 +30,8 @@ class _AppListScreenState extends State<AppListScreen> {
           AppInfo(
             name: app['name'],
             package: app['package'],
-            icon: Uint8List.fromList(List<int>.from(app['icon'])),
+            // icon: Uint8List.fromList(List<int>.from(app['icon'])),
+            // icon: _loadIconAsync(app['icon']),
           ),
         );
       }
@@ -46,9 +39,23 @@ class _AppListScreenState extends State<AppListScreen> {
       setState(() {
         apps = loadedApps;
       });
+
+      // Charger les icônes après coup
+      for (var app in loadedApps) {
+        _loadAppIcon(app);
+      }
     } on PlatformException catch (e) {
-      print("Failed to get apps: ${e.message}");
+      debugPrint("Failed to get apps: ${e.message}");
     }
+  }
+
+  Future<void> _loadAppIcon(AppInfo app) async {
+    final Uint8List icon = await platform.invokeMethod("getAppIcon", {
+      "packageName": app.package,
+    });
+    setState(() {
+      app.icon = icon;
+    });
   }
 
   @override
@@ -63,10 +70,12 @@ class _AppListScreenState extends State<AppListScreen> {
                 itemBuilder: (context, index) {
                   final app = apps[index];
                   return ListTile(
-                    leading: Image.memory(app.icon, width: 40, height: 40),
-                    title: Text(app.name),
-                    subtitle: Text(app.package),
-                  );
+                  title: Text(app.name),
+                  subtitle: Text(app.package),
+                  leading: app.icon == null
+                      ? const Icon(Icons.image_not_supported, size: 40) // Icône par défaut
+                      : Image.memory(app.icon!, width: 40, height: 40), // Icône réelle
+                );
                 },
               ),
     );
