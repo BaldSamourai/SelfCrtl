@@ -13,117 +13,73 @@ class AppListScreen extends StatefulWidget {
 class _AppListScreenState extends State<AppListScreen> {
   static const platform = MethodChannel("com.example.myapp/apps");
   List<AppInfo> apps = [];
+  List<AppInfo> filteredApps = [];
+
+  // Dictionnaire pour stocker le cache des icônes (clé = package)
+  Map<String, Uint8List?> iconCache = {};
+
+  bool _isSearching = false;
+  final TextEditingController _searchController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
     _getInstalledApps();
+    _searchController.addListener(_filterApps);
   }
 
   Future<void> _getInstalledApps() async {
     try {
-      final List result = await platform.invokeMethod('getInstalledAppsWithoutIcon');
+      final List result = await platform.invokeMethod(
+        'getInstalledAppsWithoutIcon',
+      );
       List<AppInfo> loadedApps = [];
 
       for (var app in result) {
-        loadedApps.add(
-          AppInfo(
-            name: app['name'],
-            package: app['package'],
-            // icon: Uint8List.fromList(List<int>.from(app['icon'])),
-            // icon: _loadIconAsync(app['icon']),
-          ),
-        );
+        loadedApps.add(AppInfo(name: app['name'], package: app['package']));
       }
 
       setState(() {
         apps = loadedApps;
+        filteredApps = apps;
       });
-
-      // Charger les icônes après coup
-      for (var app in loadedApps) {
-        _loadAppIcon(app);
-      }
+      _preloadIcons(); // Précharger les icônes dès que la liste est chargée
     } on PlatformException catch (e) {
       debugPrint("Failed to get apps: ${e.message}");
     }
   }
 
-  Future<void> _loadAppIcon(AppInfo app) async {
-    final Uint8List icon = await platform.invokeMethod("getAppIcon", {
-      "packageName": app.package,
-    });
-    setState(() {
-      app.icon = icon;
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: Text('Applications installées')),
-      body:
-          apps.isEmpty
-              ? Center(child: CircularProgressIndicator())
-              : ListView.builder(
-                itemCount: apps.length,
-                itemBuilder: (context, index) {
-                  final app = apps[index];
-                  return ListTile(
-                  title: Text(app.name),
-                  subtitle: Text(app.package),
-                  leading: app.icon == null
-                      ? const Icon(Icons.image_not_supported, size: 40) // Icône par défaut
-                      : Image.memory(app.icon!, width: 40, height: 40), // Icône réelle
-                );
-                },
-              ),
-    );
-  }
-
-  /* List<Map<String, dynamic>> _installedApps = [];
-  List<Map<String, dynamic>> _filteredApps = [];
-  final AndroidBridge _androidBridge = AndroidBridge();
-  final TextEditingController _searchController = TextEditingController();
-  final Set<String> _selectedApps = {};
-  final Map<String, Uint8List?> _iconsCache = {}; // Cache pour les icônes
-
-  @override
-  void initState() {
-    super.initState();
-    _fetchInstalledApps();
-    _searchController.addListener(_filterApps);
-  }
-
-  Future<void> _fetchInstalledApps() async {
-    try {
-      final apps = await _androidBridge.getInstalledApps();
-      setState(() {
-        _installedApps = apps;
-        _filteredApps = _installedApps;
+  // Précharge toutes les icônes et stocke-les dans iconCache
+  Future<void> _preloadIcons() async {
+    for (AppInfo app in apps) {
+      _loadAppIcon(app.package).then((iconBytes) {
+        if (mounted) {
+          setState(() {
+            iconCache[app.package] = iconBytes;
+          });
+        }
       });
-    } catch (e) {
-      debugPrint("Erreur: $e");
     }
   }
 
-  Future<Uint8List?> _getIcon(String packageName) async {
-    if (_iconsCache.containsKey(packageName)) {
-      return _iconsCache[packageName];
+  // Récupération de l'icône pour un package
+  Future<Uint8List?> _loadAppIcon(String packageName) async {
+    try {
+      final Uint8List icon = await platform.invokeMethod("getAppIcon", {
+        "packageName": packageName,
+      });
+      return icon;
+    } on PlatformException catch (e) {
+      debugPrint("Failed to load icon for package $packageName: ${e.message}");
+      return null; // Retourne null si l'icône échoue à se charger
     }
-    final icon = await _androidBridge.getAppIcon(packageName);
-    setState(() {
-      _iconsCache[packageName] = icon; // Ajouter au cache
-    });
-    return icon;
   }
 
   void _filterApps() {
     final query = _searchController.text.toLowerCase();
     setState(() {
-      _filteredApps = _installedApps
-          .where((app) => app["name"].toLowerCase().contains(query))
-          .toList();
+      filteredApps =
+          apps.where((app) => app.name.toLowerCase().contains(query)).toList();
     });
   }
 
@@ -131,61 +87,70 @@ class _AppListScreenState extends State<AppListScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Liste des applications à bloquer"),
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(50),
-          child: Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: TextField(
-              controller: _searchController,
-              decoration: InputDecoration(
-                labelText: "Rechercher une app",
-                prefixIcon: const Icon(Icons.search),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(50),
-                ),
-              ),
-            ),
+        title:
+            _isSearching
+                ? TextField(
+                  controller: _searchController,
+                  decoration: const InputDecoration(
+                    hintText: 'Rechercher...',
+                    hintStyle: TextStyle(color: Colors.black38),
+                    border: InputBorder.none,
+                  ),
+                  style: const TextStyle(color: Colors.black87),
+                )
+                : Text(""),
+        actions: [
+          IconButton(
+            onPressed: () {
+              setState(() {
+                _isSearching = !_isSearching;
+              });
+            },
+            icon: Icon(_isSearching ? Icons.close : Icons.search),
           ),
+        ],
+        bottom: PreferredSize(
+          preferredSize: Size.fromHeight(10),
+          child: Text('Applications installées', textAlign: TextAlign.start),
         ),
       ),
-      body: ListView.builder(
-        itemCount: _filteredApps.length,
-        itemBuilder: (context, index) {
-          final app = _filteredApps[index];
-          final isSelected = _selectedApps.contains(app["package"]);
-
-          return FutureBuilder<Uint8List?>(
-            future: _getIcon(app["package"]),
-            builder: (context, snapshot) {
-              final icon = snapshot.data;
-              return ListTile(
-                leading: icon != null
-                    ? CircleAvatar(
-                        backgroundImage: MemoryImage(icon),
-                      )
-                    : const CircleAvatar(
-                        child: Icon(Icons.apps), // Placeholder
-                      ),
-                title: Text(app["name"]),
-                subtitle: Text(app["package"]),
-                trailing: Checkbox(
-                  value: isSelected,
-                  onChanged: (value) {
-                    setState(() {
-                      if (value == true) {
-                        _selectedApps.add(app["package"]);
-                      } else {
-                        _selectedApps.remove(app["package"]);
-                      }
-                    });
-                  },
-                ),
-              );
-            },
-          );
-        },
-      ),
+      body:
+          apps.isEmpty
+              ? Center(child: CircularProgressIndicator())
+              : ListView.builder(
+                itemCount: filteredApps.length,
+                itemBuilder: (context, index) {
+                  final app = filteredApps[index];
+                  Widget leadingWidget;
+                  if (iconCache.containsKey(app.package)) {
+                    if (iconCache[app.package] != null) {
+                      leadingWidget = Image.memory(
+                        iconCache[app.package]!,
+                        width: 40,
+                        height: 40,
+                      );
+                    } else {
+                      // En cas d'erreur lors du chargement, affiche une icône par défaut
+                      leadingWidget = const Icon(
+                        Icons.image_not_supported,
+                        size: 40,
+                      );
+                    }
+                  } else {
+                    // Si l'icône n'est pas encore chargée, affiche un indicateur de chargement local
+                    leadingWidget = const SizedBox(
+                      width: 40,
+                      height: 40,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    );
+                  }
+                  return ListTile(
+                    title: Text(app.name),
+                    subtitle: Text(app.package),
+                    leading: leadingWidget,
+                  );
+                },
+              ),
     );
   }
 
@@ -193,5 +158,5 @@ class _AppListScreenState extends State<AppListScreen> {
   void dispose() {
     _searchController.dispose();
     super.dispose();
-  } */
+  }
 }

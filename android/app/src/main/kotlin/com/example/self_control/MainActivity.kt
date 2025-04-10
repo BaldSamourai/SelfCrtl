@@ -12,8 +12,15 @@ import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 import java.io.ByteArrayOutputStream
 
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+
 class MainActivity: FlutterActivity() {
     private val CHANNEL = "com.example.myapp/apps"
+
+    private val iconCache = mutableMapOf<String, ByteArray>();
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -22,14 +29,22 @@ class MainActivity: FlutterActivity() {
             call, result ->
             when(call.method) {
                 "getInstalledAppsWithoutIcon" -> {
-                    val apps = getInstalledAppsWithoutIcon()
-                    result.success(apps)
+                    CoroutineScope(Dispatchers.IO).launch {
+                        val apps = getInstalledAppsWithoutIcon()
+                        withContext(Dispatchers.Main) {  // Retour sur le thread principal pour renvoyer le résultat
+                            result.success(apps)
+                        }
+                    }
                 }
                 "getAppIcon" -> {
                     val packageName = call.argument<String>("packageName")
                     if (packageName != null) {
-                        val icon = getAppIcon(packageName)
-                        result.success(icon)
+                        CoroutineScope(Dispatchers.IO).launch {
+                            val icon = getAppIcon(packageName)
+                            withContext(Dispatchers.Main) {
+                                result.success(icon)
+                            }
+                        }
                     } else {
                         result.error("INVALID_PACKAGE", "Package name is null", null)
                     }
@@ -60,12 +75,14 @@ class MainActivity: FlutterActivity() {
     }
 
     private fun getAppIcon(packageName: String): ByteArray {
+        iconCache[packageName]?.let { return it }  
         val pm: PackageManager = packageManager
         val iconDrawable = pm.getApplicationIcon(packageName)
         val bitmap = drawableToBitmap(iconDrawable)
         val stream = ByteArrayOutputStream()
         bitmap.compress(Bitmap.CompressFormat.PNG, 100, stream)
         val iconBytes = stream.toByteArray()
+        iconCache[packageName] = iconBytes  // Stocke dans le cache
         return iconBytes
     }
 
