@@ -50,6 +50,28 @@ class _AppListScreenState extends State<AppListScreen> {
     return apps.where((app) => app.isChecked).toList();
   }
 
+  Future<void> _saveBlockedApps() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final blockedApps =
+          apps.where((app) => app.isChecked).map((app) => app.package).toList();
+      await prefs.setStringList('blockedApps', blockedApps);
+    } catch (e) {}
+  }
+
+  Future<void> _loadBlockedApps() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final storedBlockedApps = prefs.getStringList('blockedApps') ?? [];
+      setState(() {
+        for (var app in apps) {
+          //Met à true s'il trouve l'app dans la liste
+          app.isChecked = storedBlockedApps.contains(app.package);
+        }
+      });
+    } catch (e) {}
+  }
+
   Future<void> _getInstalledApps() async {
     try {
       final List result = await platform.invokeMethod(
@@ -65,6 +87,7 @@ class _AppListScreenState extends State<AppListScreen> {
         apps = loadedApps;
         filteredApps = apps;
       });
+      _loadBlockedApps();
       _preloadIcons(); // Précharger les icônes dès que la liste est chargée
     } on PlatformException catch (e) {
       debugPrint("Failed to get apps: ${e.message}");
@@ -181,6 +204,10 @@ class _AppListScreenState extends State<AppListScreen> {
                             setState(() {
                               app.isChecked = value ?? false;
                             }),
+                            debugPrint(
+                              "list application bloquées > $_getSelectedApps",
+                            ),
+                            _saveBlockedApps(),
                           },
                     ),
                   );
