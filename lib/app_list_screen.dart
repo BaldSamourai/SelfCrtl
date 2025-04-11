@@ -1,6 +1,8 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:self_control/model/app_info.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:self_control/services/android_bridge.dart';
 
 class AppListScreen extends StatefulWidget {
@@ -21,11 +23,31 @@ class _AppListScreenState extends State<AppListScreen> {
   bool _isSearching = false;
   final TextEditingController _searchController = TextEditingController();
 
+  List<String> blockedApps = [];
+
+  //Debounce champs de texte pour éviter la recherche direct après la saisie
+  Timer? _debounce;
+
   @override
   void initState() {
     super.initState();
     _getInstalledApps();
-    _searchController.addListener(_filterApps);
+    // _searchController.addListener(_filterApps);
+    _searchController.addListener(_onSearchChanged);
+  }
+
+  void _onSearchChanged() {
+    // Si un Timer est déjà en cours, on l'annule.
+    if (_debounce?.isActive ?? false) _debounce!.cancel();
+
+    // Démarre un nouveau Timer qui exécute le filtrage au bout de 300ms.
+    _debounce = Timer(const Duration(milliseconds: 300), () {
+      _filterApps();
+    });
+  }
+
+  List<AppInfo> _getSelectedApps(List<AppInfo> apps) {
+    return apps.where((app) => app.isChecked).toList();
   }
 
   Future<void> _getInstalledApps() async {
@@ -104,6 +126,10 @@ class _AppListScreenState extends State<AppListScreen> {
             onPressed: () {
               setState(() {
                 _isSearching = !_isSearching;
+                if (!_isSearching) {
+                  filteredApps = apps;
+                  _searchController.clear();
+                }
               });
             },
             icon: Icon(_isSearching ? Icons.close : Icons.search),
@@ -148,6 +174,15 @@ class _AppListScreenState extends State<AppListScreen> {
                     title: Text(app.name),
                     subtitle: Text(app.package),
                     leading: leadingWidget,
+                    trailing: Checkbox(
+                      value: app.isChecked,
+                      onChanged:
+                          (bool? value) => {
+                            setState(() {
+                              app.isChecked = value ?? false;
+                            }),
+                          },
+                    ),
                   );
                 },
               ),
@@ -157,6 +192,7 @@ class _AppListScreenState extends State<AppListScreen> {
   @override
   void dispose() {
     _searchController.dispose();
+    _debounce?.cancel();
     super.dispose();
   }
 }
