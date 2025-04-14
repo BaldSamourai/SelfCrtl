@@ -72,6 +72,18 @@ class _AppListScreenState extends State<AppListScreen> {
     } catch (e) {}
   }
 
+  Future<void> _activateBlocking() async {
+    final selectedPackages =
+        apps.where((app) => app.isChecked).map((app) => app.package).toList();
+    try {
+      await platform.invokeMethod('startBlocking', {
+        'blockedPackages': selectedPackages,
+      });
+    } on PlatformException catch (e) {
+      debugPrint("Erreur lors de l'activation du blocage: ${e.message}");
+    }
+  }
+
   Future<void> _getInstalledApps() async {
     try {
       final List result = await platform.invokeMethod(
@@ -214,8 +226,8 @@ class _AppListScreenState extends State<AppListScreen> {
               ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () {},
-        label: Text('Sauvegarder'),
+        onPressed: () {_activateBlocking();},
+        label: Text('Activer le blocage'),
         icon: Icon(Icons.lock),
       ),
     );

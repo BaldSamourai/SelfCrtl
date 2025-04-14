@@ -7,10 +7,12 @@ import android.graphics.Canvas
 import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.Drawable
 import android.os.Bundle
+import android.util.Log
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 import java.io.ByteArrayOutputStream
+
 
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -48,6 +50,10 @@ class MainActivity: FlutterActivity() {
                     } else {
                         result.error("INVALID_PACKAGE", "Package name is null", null)
                     }
+                }
+                "startBlocking" -> {
+                    val packageList = call.argument<List<String>>("blockedPackages") ?: emptyList()
+                    Log.d("MY_CUSTOM_TAG", "Liste de chaînes : ${packageList.joinToString(separator = ", ")}")
                 }
                 else -> result.notImplemented()
             }
