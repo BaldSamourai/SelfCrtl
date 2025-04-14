@@ -8,6 +8,9 @@ import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.Drawable
 import android.os.Bundle
 import android.util.Log
+import android.provider.Settings
+import android.content.Intent
+
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
@@ -54,10 +57,25 @@ class MainActivity: FlutterActivity() {
                 "startBlocking" -> {
                     val packageList = call.argument<List<String>>("blockedPackages") ?: emptyList()
                     Log.d("MY_CUSTOM_TAG", "Liste de chaînes : ${packageList.joinToString(separator = ", ")}")
+
+                    // Sauvegarde de la liste dans SharedPreferences pour utilisation ultérieure
+                    saveBlockedAppsToPrefs(packageList)
+                    result.success(null)
+                }
+                "openAccessibilitySettings" -> {
+                    // Ouvre les paramètres d'accessibilité pour que l'utilisateur active le service
+                    startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                    result.success(null)
                 }
                 else -> result.notImplemented()
             }
         }
+    }
+
+    // Sauvegarde la liste des packages à bloquer dans SharedPreferences
+    private fun saveBlockedAppsToPrefs(packageList: List<String>) {
+        val prefs = getSharedPreferences("blocker_prefs", MODE_PRIVATE)
+        prefs.edit().putStringSet("blocked_packages", packageList.toSet()).apply()
     }
 
     private fun getInstalledAppsWithoutIcon(): List<Map<String, String>> {

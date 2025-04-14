@@ -140,6 +140,8 @@ class _AppListScreenState extends State<AppListScreen> {
     });
   }
 
+  
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -226,7 +228,9 @@ class _AppListScreenState extends State<AppListScreen> {
               ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () {_activateBlocking();},
+        onPressed: () {
+          _activateBlocking();
+        },
         label: Text('Activer le blocage'),
         icon: Icon(Icons.lock),
       ),

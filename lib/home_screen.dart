@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:self_control/app_list_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -9,11 +10,23 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+  static const platform = MethodChannel("com.example.myapp/apps");
+
   void _navigateToAppListScreen(BuildContext context) {
     Navigator.push(
       context,
       MaterialPageRoute(builder: (context) => const AppListScreen()),
     );
+  }
+
+  Future<void> _openAccessibilitySettings() async {
+    try {
+      await platform.invokeMethod("openAccessibilitySettings");
+    } on PlatformException catch (error) {
+      debugPrint(
+        "Erreur lors de l'ouverture des paramètres d'accessibilité : $error",
+      );
+    }
   }
 
   @override
@@ -53,6 +66,12 @@ class _HomeScreenState extends State<HomeScreen> {
                       padding: EdgeInsets.zero,
                       onPressed: () => _navigateToAppListScreen(context),
                     ),
+                  ),
+                  ElevatedButton(
+                    child: Text("Ouvrir les paramètres d'accessibilité"),
+                    onPressed: () {
+                      _openAccessibilitySettings();
+                    },
                   ),
                 ],
               ),
