@@ -199,20 +199,25 @@ class _AppListScreenState extends State<AppListScreen> {
                     leading: leadingWidget,
                     trailing: Checkbox(
                       value: app.isChecked,
-                      onChanged:
-                          (bool? value) => {
-                            setState(() {
-                              app.isChecked = value ?? false;
-                            }),
-                            debugPrint(
-                              "list application bloquées > $_getSelectedApps",
-                            ),
-                            _saveBlockedApps(),
-                          },
+                      onChanged: (bool? value) {
+                        setState(() {
+                          app.isChecked = value ?? false;
+                        });
+                        debugPrint(
+                          "list application bloquées > ${_getSelectedApps(apps)}",
+                        );
+                        _saveBlockedApps();
+                      },
                     ),
                   );
                 },
               ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () {},
+        label: Text('Sauvegarder'),
+        icon: Icon(Icons.lock),
+      ),
     );
   }
 
